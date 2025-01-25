@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 
 /**
+ * Snowflake ID 생성기
  * https://cmhyuk.github.io/infra/system-design/07-unique-id.html - snowflake 설명
  */
 @Component
@@ -15,21 +16,19 @@ import java.time.Instant;
 public class SnowflakeGenerator extends SequenceStyleGenerator {
 
     // 비트 길이 설정
-    private static final int SIGN_BIT = 1;        // 사인 비트
-    private static final int TIMESTAMP_BITS = 41; // 타임스탬프 비트
-    private static final int DATACENTER_ID_BITS = 5; // 데이터센터 ID 비트
-    private static final int SERVER_ID_BITS = 5;   // 서버 ID 비트
-    private static final int SEQUENCE_BITS = 12;    // 일련번호 비트
+    private static final int DATACENTER_ID_BITS = 5;  // 데이터센터 ID 비트 (0~31)
+    private static final int SERVER_ID_BITS = 5;      // 서버 ID 비트 (0~31)
+    private static final int SEQUENCE_BITS = 12;      // 일련번호 비트 (0~4095)
 
-    // 시퀀스의 최대 값
-    private static final long MAX_SEQUENCE = (1 << SEQUENCE_BITS) - 1; // 4095
+    // 시퀀스의 최대 값 (4095)
+    private static final long MAX_SEQUENCE = (1 << SEQUENCE_BITS) - 1;
 
     // 커스텀 Epoch (2015-01-01 00:00:00)
     private static final long CUSTOM_EPOCH = 1420070400000L;
 
     // 데이터센터와 서버 ID 설정 (예시 값, 실제 값은 환경에 따라 설정)
     private static final long DATACENTER_ID = 1; // 데이터센터 ID (0~31)
-    private static final long SERVER_ID = 1; // 서버 ID (0~31)
+    private static final long SERVER_ID = 1;     // 서버 ID (0~31)
 
     // 현재 시퀀스 상태 (초기값은 0)
     private volatile long sequence = 0L;
@@ -77,6 +76,11 @@ public class SnowflakeGenerator extends SequenceStyleGenerator {
 
     // Snowflake ID를 생성하는 메소드
     private long generateId(long currentTimestamp) {
+        // SIGN_BIT는 사용하지 않지만 0으로 설정하여 최상위 비트 위치를 맞추기 위해 포함시킴
+        // currentTimestamp << (DATACENTER_ID_BITS + SERVER_ID_BITS + SEQUENCE_BITS): 타임스탬프 값을 왼쪽으로 시프트하여 가장 높은 비트 위치로 이동 타임스탬프는 41비트로, 다른 값들이 그 뒤를 따르므로 가장 왼쪽에 위치
+        // (DATACENTER_ID << (SERVER_ID_BITS + SEQUENCE_BITS)): 데이터센터 ID를 해당 비트 위치로 시프트하여 타임스탬프 뒤에 위치
+        // (SERVER_ID << SEQUENCE_BITS): 서버 ID를 해당 비트 위치로 시프트하여 데이터센터 ID 뒤에 위치
+        // sequence: 일련번호는 가장 낮은 비트에 위치하며, 시퀀스를 12비트로 관리
         return (currentTimestamp << (DATACENTER_ID_BITS + SERVER_ID_BITS + SEQUENCE_BITS)) |
                 (DATACENTER_ID << (SERVER_ID_BITS + SEQUENCE_BITS)) |
                 (SERVER_ID << SEQUENCE_BITS) |
